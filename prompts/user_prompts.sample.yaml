@@ -1,0 +1,11 @@
+structured_findings_extraction:
+  v1: |
+    You are a radiology assistant. Analyze this non-contrast head CT montage and
+    determine if there is a midline shift. Return the answer as a JSON object matching this schema:
+    {OUTPUT_SCHEMA}
+
+triage_decision:
+  v1: |
+    Based only on the provided non-contrast head CT montage, assign a triage level and justify briefly.
+    Return a single line in this format:
+    {OUTPUT_SCHEMA}
