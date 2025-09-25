@@ -51,6 +51,7 @@ class GeminiProvider(BaseProvider):
 		text: Optional[str] = None
 		http_status: Optional[int] = None
 		error_category: Optional[str] = None
+		response_params: Dict[str, Any] | None = {"model": self.model_name}
 
 		try:
 			response = self.client.models.generate_content(parts, generation_config=gen_config, stream=True)
@@ -82,4 +83,5 @@ class GeminiProvider(BaseProvider):
 			total_latency_ms=total_latency_ms,
 			http_status=http_status,
 			error_category=error_category,
+			response_params=response_params,
 		)

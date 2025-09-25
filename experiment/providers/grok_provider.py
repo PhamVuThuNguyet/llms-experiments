@@ -56,6 +56,7 @@ class GrokProvider(BaseProvider):
 		accum_text: list[str] = []
 		http_status: Optional[int] = None
 		error_category: Optional[str] = None
+		response_params: Dict[str, Any] | None = {"model": self.model_name}
 
 		try:
 			with requests.post(url, headers=headers, json=payload, stream=True, timeout=600) as r:
@@ -100,4 +101,5 @@ class GrokProvider(BaseProvider):
 			total_latency_ms=total_latency_ms,
 			http_status=http_status,
 			error_category=error_category,
+			response_params=response_params,
 		)

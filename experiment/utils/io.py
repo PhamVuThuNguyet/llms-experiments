@@ -29,3 +29,10 @@ def write_jsonl(path: str | Path, records: List[Dict[str, Any]]) -> None:
 	with p.open('a', encoding='utf-8') as f:
 		for rec in records:
 			f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+
+
+def write_json(path: str | Path, data: Any) -> None:
+	p = Path(path)
+	p.parent.mkdir(parents=True, exist_ok=True)
+	with p.open('w', encoding='utf-8') as f:
+		json.dump(data, f, ensure_ascii=False, indent=2)

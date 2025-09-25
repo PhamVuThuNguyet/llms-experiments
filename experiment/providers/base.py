@@ -15,6 +15,7 @@ class ProviderResponse:
 	total_latency_ms: Optional[float]
 	http_status: Optional[int]
 	error_category: Optional[str]
+	response_params: Optional[Dict[str, Any]] = None
 
 
 class BaseProvider:

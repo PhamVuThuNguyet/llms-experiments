@@ -1,98 +1,126 @@
 from __future__ import annotations
 
 import base64
+import os
 import time
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from dotenv import load_dotenv
 from openai import OpenAI
 
 from .base import BaseProvider, ProviderResponse
 
+load_dotenv()
+
 
 class OpenAIProvider(BaseProvider):
-	provider_name = "openai"
+    provider_name = "openai"
 
-	def __init__(self, model_name: str, **model_configurations: Any) -> None:
-		super().__init__(model_name, **model_configurations)
-		self.client = OpenAI()
+    def __init__(self, model_name: str, **model_configurations: Any) -> None:
+        super().__init__(model_name, **model_configurations)
+        self.client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
-	def _encode_image(self, image_path: str | Path) -> str:
-		p = Path(image_path)
-		data = p.read_bytes()
-		return base64.b64encode(data).decode('utf-8')
+    def _encode_image_data_url(self, image_path: str | Path) -> str:
+        p = Path(image_path)
+        data = base64.b64encode(p.read_bytes()).decode("utf-8")
+        ext = p.suffix.lower()
+        mime = {
+            ".png": "image/png",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".webp": "image/webp",
+        }.get(ext, "image/png")
+        return f"data:{mime};base64,{data}"
 
-	def generate(self, system_prompt: str, user_prompt: str, image_path: Optional[str] = None, json_schema: Optional[Dict[str, Any]] = None) -> ProviderResponse:
-		messages: list[dict[str, Any]] = []
-		if system_prompt:
-			messages.append({"role": "system", "content": system_prompt})
+    def generate(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        image_path: Optional[str] = None,
+        json_schema: Optional[Dict[str, Any]] = None,
+    ) -> ProviderResponse:
+        messages: list[dict[str, Any]] = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
 
-		content: list[dict[str, Any]] = [{"type": "text", "text": user_prompt}]
-		if image_path:
-			b64 = self._encode_image(image_path)
-			content.append({
-				"type": "input_image",
-				"image": {
-					"data": b64
-				}
-			})
-		messages.append({"role": "user", "content": content})
+        content: list[dict[str, Any]] = [{"type": "text", "text": user_prompt}]
+        if image_path:
+            data_url = self._encode_image_data_url(image_path)
+            content.append({"type": "image_url", "image_url": {"url": data_url}})
+        messages.append({"role": "user", "content": content})
 
-		kwargs: Dict[str, Any] = dict(model=self.model_name, messages=messages)
-		kwargs.update(self.model_configurations)
+        kwargs: Dict[str, Any] = dict(
+            model=self.model_name,
+            messages=messages,
+            stream=True,
+            stream_options={"include_usage": True},
+        )
+        kwargs.update(self.model_configurations)
 
-		# JSON schema support for response_format
-		if json_schema is not None:
-			kwargs["response_format"] = {"type": "json_schema", "json_schema": json_schema}
+        # JSON schema support for response_format
+        if json_schema is not None:
+            kwargs["response_format"] = {
+                "type": "json_schema",
+                "json_schema": json_schema,
+            }
 
-		start = time.perf_counter()
-		first_token_time: Optional[float] = None
-		accum_text_parts: list[str] = []
-		retry_count = 0
-		http_status: Optional[int] = None
-		error_category: Optional[str] = None
+        start = time.perf_counter()
+        first_token_time: Optional[float] = None
+        accum_text_parts: list[str] = []
+        http_status: Optional[int] = None
+        error_category: Optional[str] = None
+        input_tokens = None
+        output_tokens = None
+        response_params: Dict[str, Any] | None = None
 
-		try:
-			with self.client.chat.completions.stream(**kwargs) as stream:
-				for event in stream:
-					etype = event.type
-					if etype == "response.refuse.delta":
-						continue
-					if etype == "response.error":
-						error_category = "api_error"
-						break
-					if etype == "response.output_text.delta":
-						if first_token_time is None:
-							first_token_time = time.perf_counter()
-						accum_text_parts.append(event.delta)
-					elif etype == "response.completed":
-						break
-			http_status = 200
-		except Exception as e:
-			error_category = type(e).__name__
-			http_status = None
-			text = None
-		else:
-			text = "".join(accum_text_parts).strip()
+        try:
+            stream = self.client.chat.completions.create(**kwargs)
+            for chunk in stream:
+                if getattr(chunk, "model", None):
+                    if response_params is None:
+                        response_params = {"model": chunk.model}
 
-		end = time.perf_counter()
-		ttft_ms = (first_token_time - start) * 1000 if first_token_time else None
-		total_latency_ms = (end - start) * 1000
+                # usage on the terminal chunk when include_usage=True
+                usage = getattr(chunk, "usage", None)
+                if usage and input_tokens is None and output_tokens is None:
+                    input_tokens = getattr(usage, "prompt_tokens", None)
+                    output_tokens = getattr(usage, "completion_tokens", None)
+                    
+                # delta text
+                choices = getattr(chunk, "choices", None)
+                if choices:
+                    delta = getattr(choices[0], "delta", None)
+                    if delta is not None:
+                        piece = getattr(delta, "content", None)
+                        if piece:
+                            if first_token_time is None:
+                                first_token_time = time.perf_counter()
+                            accum_text_parts.append(piece)
+            http_status = 200
+        except Exception as e:
+            error_category = type(e).__name__
+            text = None
+        else:
+            text = "".join(accum_text_parts).strip()
 
-		# Usage: OpenAI new responses include usage after stream; fallback to char counts
-		input_tokens = None
-		output_tokens = None
-		input_chars = len(user_prompt) if user_prompt else None
-		output_chars = len(text) if text else None
+        end = time.perf_counter()
+        ttft_ms = (first_token_time - start) * 1000 if first_token_time else None
+        total_latency_ms = (end - start) * 1000
 
-		return ProviderResponse(
-			text=text,
-			input_tokens=input_tokens,
-			output_tokens=output_tokens,
-			input_chars=input_chars,
-			output_chars=output_chars,
-			ttft_ms=ttft_ms,
-			total_latency_ms=total_latency_ms,
-			http_status=http_status,
-			error_category=error_category,
-		)
+        # Char counts as fallback
+        input_chars = len(user_prompt) if user_prompt else None
+        output_chars = len(text) if text else None
+
+        return ProviderResponse(
+            text=text,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            input_chars=input_chars,
+            output_chars=output_chars,
+            ttft_ms=ttft_ms,
+            total_latency_ms=total_latency_ms,
+            http_status=http_status,
+            error_category=error_category,
+            response_params=response_params,
+        )

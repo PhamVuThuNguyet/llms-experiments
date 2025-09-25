@@ -1,18 +1,18 @@
 {
-    "type": "object",
-    "properties": {
-        "summary": {
-            "type": "string"
-        },
-        "items": {
-            "type": "array",
-            "items": {
-                "type": "string"
+    "name": "midline-shift-detection",
+    "description": "Information about midline shift.",
+    "schema": {
+        "type": "object",
+        "properties": {
+            "midline-shift-present": {
+                "type": "string",
+                "description": "Yes if midline shift presented, otherwith No"
             }
-        }
+        },
+        "required": [
+            "midline-shift-present"
+        ],
+        "additionalProperties": false
     },
-    "required": [
-        "summary"
-    ],
-    "additionalProperties": false
+    "strict": true
 }
