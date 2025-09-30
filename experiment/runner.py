@@ -18,12 +18,13 @@ MODEL_SPECS: List[Tuple[str, str]] = [
     ("openai", "gpt-4.1"),
     ("openai", "gpt-4o"),
     ("openai", "o1"),
-    # ("openai", "gpt-5"),
+    ("openai", "gpt-5"),
+    ("openai", "gpt-5-chat-latest"),
     ("anthropic", "claude-opus-4-1-20250805"),
     ("anthropic", "claude-opus-4-20250514"),
     ("anthropic", "claude-3-7-sonnet-latest"),
     ("anthropic", "claude-sonnet-4-20250514"),
-    # ("grok", "grok-4-fast-thinking"),
+    ("grok", "grok-4-fast-reasoning"),
     # ("gemini", "gemini-2.5-pro"),
 ]
 

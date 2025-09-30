@@ -23,9 +23,9 @@ class AnthropicProvider(BaseProvider):
         # Expected envs:
         # - ANTHROPIC_API_KEY: API key for the compatibility endpoint
         # - ANTHROPIC_OPENAI_BASE_URL: Base URL for OpenAI-compatible API (e.g., https://.../v1)
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
-        base_url = os.environ.get("ANTHROPIC_OPENAI_BASE_URL")
-        self.client = OpenAI(api_key=api_key, base_url=base_url)  # type: ignore[arg-type]
+        self.api_key = os.environ.get("ANTHROPIC_API_KEY")
+        self.base_url = os.environ.get("ANTHROPIC_OPENAI_BASE_URL")
+        self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)  # type: ignore[arg-type]
 
     def _encode_image_data_url(self, image_path: str | Path) -> str:
         p = Path(image_path)
