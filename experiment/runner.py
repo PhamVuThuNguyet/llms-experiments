@@ -13,6 +13,7 @@ from providers.grok_provider import GrokProvider
 from providers.openai_provider import OpenAIProvider
 from utils.io import load_json, load_yaml, write_json
 from utils.logger import CallLog, JsonlLogger
+import csv
 
 MODEL_SPECS: List[Tuple[str, str]] = [
     ("openai", "gpt-4.1"),
@@ -60,65 +61,47 @@ def read_json_template(path: Optional[Path]) -> Optional[Dict[str, Any]]:
 
 
 def run_task(
-    experiment_id: str,
-    prompt_id: str,
     prompt_text: str,
     system_text: str,
-    image_path: Optional[str],
-    json_template: Optional[Dict[str, Any]],
-    logger: JsonlLogger,
-    model_overrides: Dict[str, Any],
-) -> None:
-    # Apply only explicit overrides; otherwise let providers use their own defaults
+    image_path: Path,
+    json_template: Optional[dict[str, Any]],
+    model_overrides: dict[str, Any],
+    study_uid: str,
+    slice_number: str
+) -> Dict[str, List[dict[str, Any]]]:
+    """
+    Run all models on a single image and return a dict per model with all relevant info.
+    """
     applied_config = model_overrides or {}
+    model_rows: dict[str, List[dict[str, Any]]] = {}
+
     for provider_name, model_name in MODEL_SPECS:
         provider = create_provider(provider_name, model_name, applied_config)
         response = provider.generate(
             system_prompt=system_text or "",
             user_prompt=prompt_text,
-            image_path=image_path,
+            image_path=str(image_path),
             json_schema=json_template,
         )
-        # Log overrides when provided, otherwise prefer provider-reported params
-        logged_config = (
-            applied_config if applied_config else (response.response_params or {})
-        )
-        # Extract sampling params if available
-        temperature = None
-        top_p = None
-        if isinstance(logged_config, dict):
-            temperature = logged_config.get("temperature")
-            top_p = logged_config.get("top_p")
-        else:
-            temperature = 1.0
-            top_p = 1.0
 
-        call_log = CallLog(
-            prompt_id=prompt_id,
-            input_image_path=image_path,
-            user_prompt=prompt_text,
-            model_provider=provider_name,
-            model_name=model_name,
-            temperature=temperature,
-            top_p=top_p,
-            input_chars=response.input_chars,
-            input_tokens=response.input_tokens,
-            output_chars=response.output_chars,
-            output_tokens=response.output_tokens,
-            ttft_ms=response.ttft_ms,
-            total_latency_ms=response.total_latency_ms,
-            response_text=response.text,
-            retry_count=0,
-            http_status=response.http_status,
-            error_category=response.error_category,
-            experiment_id=experiment_id,
-        )
-        logger.write(call_log)
+        row = {
+            "StudyInstanceUID": study_uid,
+            "slice_number": slice_number,
+            "response_text": response.text,
+            "input_tokens": response.input_tokens,
+            "output_tokens": response.output_tokens,
+            "input_chars": response.input_chars,
+            "output_chars": response.output_chars,
+            "ttft_ms": response.ttft_ms,
+            "total_latency_ms": response.total_latency_ms,
+            "http_status": response.http_status,
+            "error_category": response.error_category,
+            "response_params": json.dumps(response.response_params) if response.response_params else None,
+        }
 
-        # Write a per-model JSON snapshot under output/{experiment_id}/{model}.json
-        out_dir = Path("output") / experiment_id
-        out_path = out_dir / f"{model_name}.json"
-        write_json(out_path, call_log.to_dict())
+        model_rows.setdefault(model_name, []).append(row)
+
+    return model_rows
 
 
 def main() -> None:
