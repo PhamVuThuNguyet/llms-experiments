@@ -140,25 +140,59 @@ def main() -> None:
     systems = read_systems(Path(args.systems))
     prompt_text = prompts[args.prompt_id][args.prompt_ver]
     system_text = systems[args.system_id][args.system_ver]
-    json_template = (
-        read_json_template(Path(args.json_template)) if args.json_template else None
-    )
-
-    image_path = args.image if args.image else None
+    json_template = read_json_template(Path(args.json_template)) if args.json_template else None
     model_overrides = json.loads(args.model_overrides) if args.model_overrides else {}
 
-    logger = JsonlLogger()
+    image_path = Path(args.image)
+    burst_column = [
+        "StudyInstanceUID",
+        "slice_number",
+        "response_text",
+        "input_tokens",
+        "output_tokens",
+        "input_chars",
+        "output_chars",
+        "ttft_ms",
+        "total_latency_ms",
+        "http_status",
+        "error_category",
+        "response_params",
+    ]
 
-    run_task(
-        experiment_id=args.experiment_id,
-        prompt_id=args.prompt_id,
-        prompt_text=prompt_text,
-        system_text=system_text,
-        image_path=image_path,
-        json_template=json_template,
-        logger=logger,
-        model_overrides=model_overrides,
-    )
+    # Prepare CSV writers per model
+    writers: dict[str, csv.DictWriter] = {}
+    files: dict[str, any] = {}
+    output_dir = Path("output") / args.experiment_id
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    for _, model_name in MODEL_SPECS:
+        csv_path = output_dir / f"{model_name}.csv"
+        f = open(csv_path, "w", newline="", encoding="utf-8", buffering=1)  # line-buffered
+        writer = csv.DictWriter(f, fieldnames=burst_column)
+        writer.writeheader()
+        writers[model_name] = writer
+        files[model_name] = f
+
+    if image_path.is_dir():
+        for study_folder in image_path.iterdir():
+            if study_folder.is_dir():
+                study_uid = study_folder.name
+                for img_file in study_folder.glob("*.png"):
+                    slice_number = img_file.name
+                    print(f"Processing {study_uid}/{slice_number}")
+                    result = run_task(prompt_text, system_text, img_file, json_template, model_overrides, study_uid, slice_number)
+                    # Write rows per model and flush immediately
+                    for model_name, rows in result.items():
+                        writers[model_name].writerows(rows)
+                        files[model_name].flush()
+    else:
+        raise ValueError(f"Image path must be a directory, got {image_path}")
+
+    # Close all files
+    for f in files.values():
+        f.close()
+
+    print(f"Results saved incrementally in {output_dir}")
 
 
 if __name__ == "__main__":
