@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -59,7 +60,7 @@ def read_json_template(path: Optional[Path]) -> Optional[Dict[str, Any]]:
     return load_json(path)
 
 
-def run_task(
+async def run_task(
     experiment_id: str,
     prompt_id: str,
     prompt_text: str,
@@ -68,27 +69,22 @@ def run_task(
     json_template: Optional[Dict[str, Any]],
     logger: JsonlLogger,
     model_overrides: Dict[str, Any],
-) -> None:
-    # Apply only explicit overrides; otherwise let providers use their own defaults
-    applied_config = model_overrides or {}
+):
     for provider_name, model_name in MODEL_SPECS:
-        provider = create_provider(provider_name, model_name, applied_config)
-        response = provider.generate(
+        provider = create_provider(provider_name, model_name, model_overrides)
+        print(f"Generating with {model_name}...")
+        response = await provider.generate(
             system_prompt=system_text or "",
             user_prompt=prompt_text,
             image_path=image_path,
             json_schema=json_template,
         )
-        # Log overrides when provided, otherwise prefer provider-reported params
-        logged_config = (
-            applied_config if applied_config else (response.response_params or {})
-        )
         # Extract sampling params if available
         temperature = None
         top_p = None
-        if isinstance(logged_config, dict):
-            temperature = logged_config.get("temperature")
-            top_p = logged_config.get("top_p")
+        if len(model_overrides):
+            temperature = model_overrides.get("temperature")
+            top_p = model_overrides.get("top_p")
         else:
             temperature = 1.0
             top_p = 1.0
@@ -108,20 +104,21 @@ def run_task(
             ttft_ms=response.ttft_ms,
             total_latency_ms=response.total_latency_ms,
             response_text=response.text,
-            retry_count=0,
             http_status=response.http_status,
             error_category=response.error_category,
+            error_message=response.error_message,
             experiment_id=experiment_id,
         )
         logger.write(call_log)
 
-        # Write a per-model JSON snapshot under output/{experiment_id}/{model}.json
-        out_dir = Path("output") / experiment_id
-        out_path = out_dir / f"{model_name}.json"
+        # Write a per-model JSON snapshot under output/{experiment_id}/{model}_{timestamp}.json
+        out_dir = Path("output/mls-binary-v1") / experiment_id
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        out_path = out_dir / f"{model_name}_{timestamp}.json"
         write_json(out_path, call_log.to_dict())
 
 
-def main() -> None:
+def main():
     load_dotenv()
     parser = argparse.ArgumentParser(
         description="Run LLM experiments across providers."

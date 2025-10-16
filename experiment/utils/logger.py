@@ -25,9 +25,9 @@ class CallLog:
     total_latency_ms: Optional[float]
     # Response and status
     response_text: Optional[str]
-    retry_count: int
     http_status: Optional[int]
     error_category: Optional[str]
+    error_message: Optional[str] = None
     # Sampling params (if available)
     temperature: Optional[float] = None
     top_p: Optional[float] = None
@@ -42,6 +42,6 @@ class JsonlLogger:
     def write(self, call_log: CallLog) -> None:
         print(
             Fore.GREEN
-            + f"Logged {call_log.model_provider}:{call_log.model_name} prompt={call_log.prompt_id} status={call_log.http_status} retry={call_log.retry_count}"
+            + f"Logged {call_log.model_provider}:{call_log.model_name} prompt={call_log.prompt_id} status={call_log.http_status}"
             + Style.RESET_ALL
         )

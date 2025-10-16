@@ -6,7 +6,7 @@
         "properties": {
             "midline-shift-present": {
                 "type": "string",
-                "description": "Yes if midline shift presented, otherwith No"
+                "description": "1 if midline shift presented, otherwise 0"
             }
         },
         "required": [

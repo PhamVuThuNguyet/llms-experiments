@@ -51,6 +51,7 @@ class GeminiProvider(BaseProvider):
 		text: Optional[str] = None
 		http_status: Optional[int] = None
 		error_category: Optional[str] = None
+		error_message: Optional[str] = None
 		response_params: Dict[str, Any] | None = {"model": self.model_name}
 
 		try:
@@ -65,6 +66,10 @@ class GeminiProvider(BaseProvider):
 			http_status = 200
 		except Exception as e:
 			error_category = type(e).__name__
+			error_message = str(e)
+			# Try to extract HTTP status from exceptions
+			if hasattr(e, 'response') and hasattr(e.response, 'status_code'):
+				http_status = e.response.status_code
 
 		end = time.perf_counter()
 		ttft_ms = (first_token_time - start) * 1000 if first_token_time else None
@@ -83,5 +88,6 @@ class GeminiProvider(BaseProvider):
 			total_latency_ms=total_latency_ms,
 			http_status=http_status,
 			error_category=error_category,
+			error_message=error_message,
 			response_params=response_params,
 		)
