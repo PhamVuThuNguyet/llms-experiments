@@ -67,6 +67,7 @@ async def run_task(
     system_text: str,
     image_path: Optional[str],
     json_template: Optional[Dict[str, Any]],
+    output_folder: str,
     logger: JsonlLogger,
     model_overrides: Dict[str, Any],
 ):
@@ -112,7 +113,7 @@ async def run_task(
         logger.write(call_log)
 
         # Write a per-model JSON snapshot under output/{experiment_id}/{model}_{timestamp}.json
-        out_dir = Path("output/mls-binary-v1") / experiment_id
+        out_dir = Path(f"output/{output_folder}") / experiment_id
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         out_path = out_dir / f"{model_name}_{timestamp}.json"
         write_json(out_path, call_log.to_dict())

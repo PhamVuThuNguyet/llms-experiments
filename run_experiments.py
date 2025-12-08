@@ -35,7 +35,7 @@ def find_image_in_folder(folder_path: Path) -> Optional[str]:
 def get_all_experiment_folders(data_dir: Path, start_from: int = 0) -> List[Path]:
     """
     Get all subfolders in the mls-data directory that contain experiment data.
-    
+
     Args:
         data_dir: Path to the data directory
         start_from: Only include experiments with ID >= start_from (default: 0)
@@ -70,8 +70,11 @@ def get_all_experiment_folders(data_dir: Path, start_from: int = 0) -> List[Path
 async def run_mls_experiments(
     data_dir: Path,
     prompts_file: Path,
+    prompt_task: str,
+    prompt_version: str,
     systems_file: Path,
     json_template_file: Path,
+    output_folder: str,
     num_runs: int = 3,
     start_from: int = 0,
 ) -> None:
@@ -93,7 +96,7 @@ async def run_mls_experiments(
     json_template = read_json_template(json_template_file)
 
     # Extract the specific prompts we need
-    prompt_text = prompts["structured_findings_extraction"]["mls_v1"]
+    prompt_text = prompts[prompt_task][prompt_version]
     system_text = systems["general"]["default"]
 
     print(f"System prompt: {system_text[:100]}...")
@@ -101,7 +104,9 @@ async def run_mls_experiments(
 
     # Get all experiment folders
     experiment_folders = get_all_experiment_folders(data_dir, start_from)
-    print(f"Found {len(experiment_folders)} experiment folders (starting from experiment {start_from})")
+    print(
+        f"Found {len(experiment_folders)} experiment folders (starting from experiment {start_from})"
+    )
 
     if not experiment_folders:
         print("No experiment folders found. Exiting.")
@@ -134,11 +139,12 @@ async def run_mls_experiments(
             try:
                 await run_task(
                     experiment_id=experiment_id,
-                    prompt_id="structured_findings_extraction",
+                    prompt_id="triage",
                     prompt_text=prompt_text,
                     system_text=system_text,
                     image_path=image_path,
                     json_template=json_template,
+                    output_folder=output_folder,
                     logger=logger,
                     model_overrides={},
                 )
@@ -158,10 +164,13 @@ def main():
 
     # Define paths
     script_dir = Path(__file__).parent
-    data_dir = script_dir / "data" / "mls-data"
+    data_dir = script_dir / "data" / "triage-data"
     prompts_file = script_dir / "prompts" / "user_prompts.sample.yaml"
+    prompt_task = "triage"
+    prompt_version = "triage_v1"
     systems_file = script_dir / "prompts" / "system_prompts.sample.yaml"
-    json_template_file = script_dir / "schemas" / "mls_template.json"
+    json_template_file = script_dir / "schemas" / "triage_template.json"
+    output_folder = "triage-v2"
 
     # Verify all required files exist
     required_files = [data_dir, prompts_file, systems_file, json_template_file]
@@ -181,10 +190,13 @@ def main():
         run_mls_experiments(
             data_dir=data_dir,
             prompts_file=prompts_file,
+            prompt_task=prompt_task,
+            prompt_version=prompt_version,
             systems_file=systems_file,
             json_template_file=json_template_file,
+            output_folder=output_folder,
             num_runs=1,
-            start_from=313,
+            start_from=0,
         )
     )
 

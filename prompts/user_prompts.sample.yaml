@@ -2,6 +2,11 @@ structured_findings_extraction:
   mls_v1: |
     Act as a radiology expert specializing in neuroimaging. Analyze the provided head CT image to determine if there is a midline shift. Return the answer as a JSON object as below: {"midline-shift-present": 1 if midline shift present, otherwise 0}. 
 
+triage:
+  triage_v1: |
+    Act as a radiology expert specializing in neuroimaging. Analyze the provided head CT image to determine the risk level. High risk cases referred to those requiring urgent clinical intervention. Low risk cases corresponded to non-critical findings. If you are unable to confidently categorize a case as either high risk or low risk, the unclear option must be selected.
+    Return the answer as a JSON object as provided template.
+
 summary_extraction:
   mls_v1: |
     Act as a skilled medical data analyst. Analyze the provided diagnostic text thoroughly. Your task is to determine from the text whether there is a midline shift. If a midline shift is present, return the 1; if not, return the 0. 

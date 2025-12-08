@@ -1,0 +1,18 @@
+{
+    "name": "tbi-triage",
+    "description": "TBI severity triaging",
+    "schema": {
+        "type": "object",
+        "properties": {
+            "risk": {
+                "type": "string",
+                "description": "Returns one of these options: [High Risk, Unclear, Low Risk]. High Risk]. High risk cases referred to those requiring urgent clinical intervention. Low risk cases corresponded to non-critical findings. If you are unable to confidently categorize a case as either high risk or low risk, the unclear option must be selected."
+            }
+        },
+        "required": [
+            "risk"
+        ],
+        "additionalProperties": false
+    },
+    "strict": true
+}
