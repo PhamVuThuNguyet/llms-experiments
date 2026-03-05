@@ -1,0 +1,18 @@
+{
+    "name": "burst-fracture-detection",
+    "description": "Information about burst fracture detection.",
+    "schema": {
+        "type": "object",
+        "properties": {
+            "burst-fracture-present": {
+                "type": "string",
+                "description": "1 if burst fracture presented, otherwise 0"
+            }
+        },
+        "required": [
+            "burst-fracture-present"
+        ],
+        "additionalProperties": false
+    },
+    "strict": true
+}

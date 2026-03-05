@@ -1,6 +1,8 @@
 structured_findings_extraction:
   mls_v1: |
     Act as a radiology expert specializing in neuroimaging. Analyze the provided head CT image to determine if there is a midline shift. Return the answer as a JSON object as below: {"midline-shift-present": 1 if midline shift present, otherwise 0}. 
+  bf_v1: |
+    Act as a radiology expert specializing in neuroimaging. Analyze the provided head CT image to determine if there is a burst fracture. Return the answer as a JSON object as below: {"burst-fracture-present": 1 if burst fracture present, otherwise 0}. 
 
 triage:
   triage_v1: |

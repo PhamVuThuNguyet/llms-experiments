@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Script to run MLS (Midline Shift) experiments on all subfolders in data/mls-data.
-Each subfolder represents a single experiment, and each experiment is run 3 times.
+Script to run experiments on all subfolders in data folder (mls, triaging).
+Each subfolder represents a single experiment, and each experiment is run a configurable number of times.
 """
 
 import asyncio
