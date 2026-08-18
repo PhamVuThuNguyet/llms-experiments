@@ -38,10 +38,13 @@ class CallLog:
         return asdict(self)
 
 
-class JsonlLogger:
+class CallProgressLogger:
+    """Console progress logger for completed provider calls."""
+
     def write(self, call_log: CallLog) -> None:
         print(
             Fore.GREEN
-            + f"Logged {call_log.model_provider}:{call_log.model_name} prompt={call_log.prompt_id} status={call_log.http_status}"
+            + f"Logged {call_log.model_provider}:{call_log.model_name} "
+            + f"prompt={call_log.prompt_id} status={call_log.http_status}"
             + Style.RESET_ALL
         )

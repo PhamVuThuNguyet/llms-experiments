@@ -3,3 +3,4 @@
 output/
 reports/
 data/
+__pycache__/

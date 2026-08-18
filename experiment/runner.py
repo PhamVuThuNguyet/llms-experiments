@@ -1,19 +1,24 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from dotenv import load_dotenv
-from providers.anthropic_provider import AnthropicProvider
-from providers.base import BaseProvider
-from providers.gemini_provider import GeminiProvider
-from providers.grok_provider import GrokProvider
-from providers.openai_provider import OpenAIProvider
-from utils.io import load_json, load_yaml, write_json
-from utils.logger import CallLog, JsonlLogger
+
+from .providers.anthropic_provider import AnthropicProvider
+from .providers.base import BaseProvider
+from .providers.gemini_provider import GeminiProvider
+from .providers.grok_provider import GrokProvider
+from .providers.openai_provider import OpenAIProvider
+from .utils.io import load_json, load_yaml, write_json
+from .utils.logger import CallLog, CallProgressLogger
+
+DEFAULT_TEMPERATURE = 1.0
+DEFAULT_TOP_P = 1.0
 
 MODEL_SPECS: List[Tuple[str, str]] = [
     ("openai", "gpt-4.1"),
@@ -29,19 +34,21 @@ MODEL_SPECS: List[Tuple[str, str]] = [
     # ("gemini", "gemini-2.5-pro"),
 ]
 
+_PROVIDER_FACTORIES = {
+    "openai": OpenAIProvider,
+    "anthropic": AnthropicProvider,
+    "grok": GrokProvider,
+    "gemini": GeminiProvider,
+}
+
 
 def create_provider(
     provider: str, model: str, model_configurations: Dict[str, Any]
 ) -> BaseProvider:
-    if provider == "openai":
-        return OpenAIProvider(model, **model_configurations)
-    if provider == "anthropic":
-        return AnthropicProvider(model, **model_configurations)
-    if provider == "grok":
-        return GrokProvider(model, **model_configurations)
-    if provider == "gemini":
-        return GeminiProvider(model, **model_configurations)
-    raise ValueError(f"Unknown provider: {provider}")
+    factory = _PROVIDER_FACTORIES.get(provider)
+    if factory is None:
+        raise ValueError(f"Unknown provider: {provider}")
+    return factory(model, **model_configurations)
 
 
 def read_prompts(prompt_yaml: Path) -> Dict[str, Dict[str, str]]:
@@ -60,6 +67,12 @@ def read_json_template(path: Optional[Path]) -> Optional[Dict[str, Any]]:
     return load_json(path)
 
 
+def _sampling_params(model_overrides: Dict[str, Any]) -> tuple[float | None, float | None]:
+    if model_overrides:
+        return model_overrides.get("temperature"), model_overrides.get("top_p")
+    return DEFAULT_TEMPERATURE, DEFAULT_TOP_P
+
+
 async def run_task(
     experiment_id: str,
     prompt_id: str,
@@ -68,9 +81,10 @@ async def run_task(
     image_path: Optional[str],
     json_template: Optional[Dict[str, Any]],
     output_folder: str,
-    logger: JsonlLogger,
+    logger: CallProgressLogger,
     model_overrides: Dict[str, Any],
 ):
+    temperature, top_p = _sampling_params(model_overrides)
     for provider_name, model_name in MODEL_SPECS:
         provider = create_provider(provider_name, model_name, model_overrides)
         print(f"Generating with {model_name}...")
@@ -80,15 +94,6 @@ async def run_task(
             image_path=image_path,
             json_schema=json_template,
         )
-        # Extract sampling params if available
-        temperature = None
-        top_p = None
-        if len(model_overrides):
-            temperature = model_overrides.get("temperature")
-            top_p = model_overrides.get("top_p")
-        else:
-            temperature = 1.0
-            top_p = 1.0
 
         call_log = CallLog(
             prompt_id=prompt_id,
@@ -112,7 +117,6 @@ async def run_task(
         )
         logger.write(call_log)
 
-        # Write a per-model JSON snapshot under output/{experiment_id}/{model}_{timestamp}.json
         out_dir = Path(f"output/{output_folder}") / experiment_id
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         out_path = out_dir / f"{model_name}_{timestamp}.json"
@@ -144,6 +148,11 @@ def main():
     parser.add_argument("--image", required=False, help="Optional image path")
     parser.add_argument("--experiment_id", required=True, help="Experiment ID label")
     parser.add_argument(
+        "--output_folder",
+        required=True,
+        help="Output folder name under output/",
+    )
+    parser.add_argument(
         "--model_overrides",
         required=False,
         help="JSON for model configuration overrides",
@@ -162,17 +171,19 @@ def main():
     image_path = args.image if args.image else None
     model_overrides = json.loads(args.model_overrides) if args.model_overrides else {}
 
-    logger = JsonlLogger()
-
-    run_task(
-        experiment_id=args.experiment_id,
-        prompt_id=args.prompt_id,
-        prompt_text=prompt_text,
-        system_text=system_text,
-        image_path=image_path,
-        json_template=json_template,
-        logger=logger,
-        model_overrides=model_overrides,
+    logger = CallProgressLogger()
+    asyncio.run(
+        run_task(
+            experiment_id=args.experiment_id,
+            prompt_id=args.prompt_id,
+            prompt_text=prompt_text,
+            system_text=system_text,
+            image_path=image_path,
+            json_template=json_template,
+            output_folder=args.output_folder,
+            logger=logger,
+            model_overrides=model_overrides,
+        )
     )
 
 
